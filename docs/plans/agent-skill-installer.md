@@ -1,7 +1,7 @@
 # Initiative plan: agent-skill-installer
 
 Epic: <https://github.com/metaneutrons/agent-skill-installer/issues/7>
-Decision state: proposed, 11 October 2026
+Decision state: accepted on 11 October 2026; D3 stays open until M1 measures it
 
 ## Outcome and boundaries
 
@@ -135,10 +135,12 @@ it lies inside a git working tree (a `.git` directory or file), naming the
 root. No git library and no git process: presence of `.git` is enough to warn,
 and the crate never stages, commits or ignores anything.
 
-**Open, decided before M3:** whether an automatic update proceeds inside a git
-working tree. Proposed: it does, because the files are ours and unchanged, and
-the report names the repository so the change can be committed. The alternative
-is to treat a git working tree like a modified skill and only report.
+**Decided on 11 October 2026:** an automatic update proceeds inside a git
+working tree as anywhere else. The files are the crate's own and unchanged, so
+updating them is what the user consented to; the report names the repository
+so the change can be committed. Treating a working tree like a modified skill
+was the alternative, and it would leave a stale skill in exactly the setup
+where the user keeps skills deliberately.
 
 ### D7: Writing safely
 
@@ -199,7 +201,7 @@ before it.
 ### M3: Install, update, remove
 
 Execution: <https://github.com/metaneutrons/agent-skill-installer/issues/4>
-Dependencies: M2, and the D6 decision
+Dependencies: M2
 
 - M3-A1: The ownership record follows D4; editing any byte of any file of an
   installed skill makes it "modified". Counter-probe: an untouched skill stays
@@ -250,9 +252,14 @@ integration.
   install lands in a git working tree. D6 makes that visible; it does not make
   it harmless.
 - **Measurement needs the tools.** M1 can only measure tools that run on an
-  available machine. Unmeasured behaviour stays marked as such.
+  available machine. Unmeasured behaviour stays marked as such, and the owner
+  accepted on 11 October 2026 that M1 can be accepted with tools that were not
+  available marked as unmeasured.
 - No data migration: nothing is installed today.
 
 ## Decision changes
 
-None yet.
+- 11 October 2026: D6 decided, automatic updates proceed inside a git working
+  tree. M3 no longer waits on it.
+- 11 October 2026: M1 may be accepted with unavailable tools marked as
+  unmeasured.

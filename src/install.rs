@@ -171,6 +171,9 @@ pub enum Done {
     Overwritten,
     /// Removed.
     Removed,
+    /// Nothing was written: the place changed after the assessment, and what
+    /// is there now was put back untouched. Assessing again shows what it is.
+    Changed,
     /// Writing failed; the place is as it was before.
     Failed(String),
 }
@@ -182,6 +185,7 @@ impl fmt::Display for Done {
             Self::Updated { from } => write!(f, "updated from {from}"),
             Self::Overwritten => f.write_str("overwritten"),
             Self::Removed => f.write_str("removed"),
+            Self::Changed => f.write_str("left alone: changed since the assessment"),
             Self::Failed(why) => write!(f, "failed: {why}"),
         }
     }
@@ -394,14 +398,27 @@ impl<'a> Installer<'a> {
             self.skill
                 .files_with_record(&self.program.name, &self.program.version.to_string()),
         );
-        match replace_dir(&step.place, &step.skill_dir, &files, &mut |_| Ok(())) {
+        // The assessment may be old: a person could have edited the skill, or
+        // put one of their own in an empty place, since. What was there is
+        // checked once it has been moved aside, so nothing changed before that
+        // instant is overwritten.
+        let mut changed = false;
+        let result = replace_dir(&step.place, &step.skill_dir, &files, &mut |stage, path| {
+            if stage == Stage::OldMovedAside && self.found(path) != step.found {
+                changed = true;
+                return Err(io::Error::other("changed since the assessment"));
+            }
+            Ok(())
+        });
+        match result {
             Ok(()) => done,
+            Err(_) if changed => Done::Changed,
             Err(error) => Done::Failed(error.to_string()),
         }
     }
 }
 
-/// Where a replacement stands, for a test that interrupts it.
+/// Where a replacement stands, for a check or a test that interrupts it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Stage {
     /// The new version is written next to the place; nothing moved yet.
@@ -432,11 +449,16 @@ fn staging(place: &Path, skill_dir: &Path, kind: &str) -> io::Result<PathBuf> {
 /// place. A tool reading at the same moment finds the old version, the new
 /// one, or for an instant none, never a mixture. On any failure the old
 /// version is put back and the staging removed.
+///
+/// `interrupt` is called at each stage with the directory concerned: the
+/// staged new version, then the old one moved aside, which no longer moves
+/// under anyone's hands and is what a check should look at. An error there
+/// stops the replacement.
 pub fn replace_dir(
     place: &Path,
     skill_dir: &Path,
     files: &BTreeMap<PathBuf, Vec<u8>>,
-    interrupt: &mut dyn FnMut(Stage) -> io::Result<()>,
+    interrupt: &mut dyn FnMut(Stage, &Path) -> io::Result<()>,
 ) -> io::Result<()> {
     fs::create_dir_all(place)?;
     let new = staging(place, skill_dir, "new")?;
@@ -448,7 +470,7 @@ pub fn replace_dir(
             }
             fs::write(path, content)?;
         }
-        interrupt(Stage::Staged)
+        interrupt(Stage::Staged, &new)
     })();
     if let Err(error) = written {
         let _ = fs::remove_dir_all(&new);
@@ -461,7 +483,7 @@ pub fn replace_dir(
         let _ = fs::remove_dir_all(&new);
         return Err(error);
     }
-    let moved = interrupt(Stage::OldMovedAside).and_then(|()| fs::rename(&new, skill_dir));
+    let moved = interrupt(Stage::OldMovedAside, &old).and_then(|()| fs::rename(&new, skill_dir));
     if let Err(error) = moved {
         if had_old {
             let _ = fs::rename(&old, skill_dir);
@@ -508,9 +530,9 @@ mod tests {
             let home = tempfile::tempdir().expect("home");
             let place = home.path().join("tool/skills");
             let skill_dir = place.join("devserial");
-            replace_dir(&place, &skill_dir, &files("old"), &mut |_| Ok(())).expect("first");
+            replace_dir(&place, &skill_dir, &files("old"), &mut |_, _| Ok(())).expect("first");
 
-            let result = replace_dir(&place, &skill_dir, &files("new"), &mut |stage| {
+            let result = replace_dir(&place, &skill_dir, &files("new"), &mut |stage, _| {
                 if stage == stop_at {
                     Err(io::Error::other("interrupted"))
                 } else {
@@ -544,8 +566,8 @@ mod tests {
         let home = tempfile::tempdir().expect("home");
         let place = home.path().join("tool/skills");
         let skill_dir = place.join("devserial");
-        replace_dir(&place, &skill_dir, &files("old"), &mut |_| Ok(())).expect("first");
-        replace_dir(&place, &skill_dir, &files("new"), &mut |_| Ok(())).expect("second");
+        replace_dir(&place, &skill_dir, &files("old"), &mut |_, _| Ok(())).expect("first");
+        replace_dir(&place, &skill_dir, &files("new"), &mut |_, _| Ok(())).expect("second");
         assert_eq!(
             fs::read_to_string(skill_dir.join(SKILL_FILE)).expect("new"),
             "new"
@@ -561,7 +583,7 @@ mod tests {
         let place = home.path().join("tool/skills");
         let skill_dir = place.join("devserial");
         let mut seen = Vec::new();
-        replace_dir(&place, &skill_dir, &files("x"), &mut |_| {
+        replace_dir(&place, &skill_dir, &files("x"), &mut |_, _| {
             seen.extend(
                 fs::read_dir(&place)
                     .expect("read")

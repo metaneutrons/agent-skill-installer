@@ -608,3 +608,76 @@ fn declines_are_kept_in_the_callers_file() {
 
     assert!(consent.decline(Path::new("/a\nb")).is_err());
 }
+
+// ------------------------------------------------------- since the assessment
+
+/// Siblings of the skills directory the installer stages in.
+fn staging_left(place: &Path) -> Vec<String> {
+    let parent = place.parent().expect("parent");
+    fs::read_dir(parent)
+        .expect("read")
+        .filter_map(|entry| entry.ok()?.file_name().into_string().ok())
+        .filter(|name| name.starts_with(".asi-"))
+        .collect()
+}
+
+/// A copy a person edits between the assessment and the update is not
+/// overwritten, whatever the assessment said.
+#[test]
+fn a_skill_edited_after_the_assessment_is_not_overwritten() {
+    let home = machine(&[".claude"]);
+    let places = install(home.path(), &skill("old"), &program("0.1.0"));
+    let catalog = Catalog::builtin();
+    let env = Environment::new(home.path());
+    let (newer, program) = (skill("new"), program("0.2.0"));
+    let installer = Installer::new(&catalog, &env, &newer, &program);
+    let assessment = installer.assess(&no_consent(home.path())).expect("assess");
+    assert!(
+        matches!(assessment.steps[0].action, Action::Update { .. }),
+        "{:?}",
+        assessment.steps[0].action
+    );
+
+    let skill_md = places[0].join("devserial").join(SKILL_FILE);
+    let edited = format!(
+        "{}my own note\n",
+        fs::read_to_string(&skill_md).expect("read")
+    );
+    fs::write(&skill_md, &edited).expect("edit");
+
+    let outcomes = installer.apply(&assessment, &Approval::default());
+    assert_eq!(outcomes.len(), 1, "{outcomes:?}");
+    assert_eq!(outcomes[0].done, Done::Changed);
+    assert_eq!(fs::read_to_string(&skill_md).expect("read"), edited);
+    assert_eq!(staging_left(&places[0]), Vec::<String>::new());
+}
+
+/// A skill of somebody else's put into an empty place between the assessment
+/// and the approved install is left alone.
+#[test]
+fn a_skill_put_in_place_after_the_assessment_is_left_alone() {
+    let home = machine(&[".claude"]);
+    let catalog = Catalog::builtin();
+    let env = Environment::new(home.path());
+    let (skill, program) = (skill("ours"), program("0.1.0"));
+    let installer = Installer::new(&catalog, &env, &skill, &program);
+    let assessment = installer.assess(&no_consent(home.path())).expect("assess");
+    let place = assessment.steps[0].place.clone();
+    assert_eq!(assessment.steps[0].action, Action::Install);
+
+    let theirs = place.join("devserial");
+    fs::create_dir_all(&theirs).expect("theirs");
+    fs::write(theirs.join(SKILL_FILE), "theirs\n").expect("write");
+
+    let approval = Approval {
+        install: vec![place.clone()],
+        overwrite: Vec::new(),
+    };
+    let outcomes = installer.apply(&assessment, &approval);
+    assert_eq!(outcomes[0].done, Done::Changed, "{outcomes:?}");
+    assert_eq!(
+        fs::read_to_string(theirs.join(SKILL_FILE)).expect("read"),
+        "theirs\n"
+    );
+    assert_eq!(staging_left(&place), Vec::<String>::new());
+}

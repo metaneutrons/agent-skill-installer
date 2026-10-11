@@ -65,7 +65,10 @@ fn blanked(skill_md: &[u8]) -> Vec<u8> {
 ///
 /// Each file contributes its path, a zero byte, its length and its content,
 /// in path order, so neither moving bytes between files nor renaming one
-/// leaves the digest unchanged.
+/// leaves the digest unchanged. The path is written with `/` between its
+/// parts on every system, so a skill installed on one reads as unchanged on
+/// another, and a path read back from disk on Windows matches the one the
+/// program gave.
 pub fn digest(files: &BTreeMap<PathBuf, Vec<u8>>) -> String {
     let mut hasher = Sha256::new();
     for (path, content) in files {
@@ -74,7 +77,7 @@ pub fn digest(files: &BTreeMap<PathBuf, Vec<u8>>) -> String {
         } else {
             content.clone()
         };
-        hasher.update(path.to_string_lossy().as_bytes());
+        hasher.update(portable(path).as_bytes());
         hasher.update([0]);
         hasher.update((content.len() as u64).to_be_bytes());
         hasher.update(&content);
@@ -88,6 +91,14 @@ pub fn digest(files: &BTreeMap<PathBuf, Vec<u8>>) -> String {
             hex
         });
     format!("sha256:{hex}")
+}
+
+/// A relative path with `/` between its parts, whatever the system uses.
+fn portable(path: &Path) -> String {
+    path.components()
+        .map(|part| part.as_os_str().to_string_lossy())
+        .collect::<Vec<_>>()
+        .join("/")
 }
 
 /// The files with the digest written into `SKILL.md`.
@@ -191,4 +202,32 @@ fn unquote(value: &str) -> Option<String> {
         }
     }
     Some(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn files(nested: PathBuf) -> BTreeMap<PathBuf, Vec<u8>> {
+        BTreeMap::from([
+            (
+                PathBuf::from(SKILL_FILE),
+                b"---\nname: x\n---\nbody\n".to_vec(),
+            ),
+            (nested, b"# CLI\n".to_vec()),
+        ])
+    }
+
+    /// A path as a program writes it and as it is read back from disk give
+    /// the same digest, and that digest is the same on every system.
+    #[test]
+    fn the_digest_does_not_depend_on_the_path_separator() {
+        let given = digest(&files(PathBuf::from("references/cli.md")));
+        let read_back = digest(&files(Path::new("references").join("cli.md")));
+        assert_eq!(given, read_back);
+        assert_eq!(given, GOLDEN);
+    }
+
+    /// Computed once; a change here breaks every installed record.
+    const GOLDEN: &str = "sha256:6cc04206c47535a97a74d522b2dcc77d36d66e7cae2f3ddcae4f949e6bd5d252";
 }

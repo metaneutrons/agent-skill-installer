@@ -192,3 +192,31 @@ fn unquote(value: &str) -> Option<String> {
     }
     Some(out)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn files(nested: PathBuf) -> BTreeMap<PathBuf, Vec<u8>> {
+        BTreeMap::from([
+            (
+                PathBuf::from(SKILL_FILE),
+                b"---\nname: x\n---\nbody\n".to_vec(),
+            ),
+            (nested, b"# CLI\n".to_vec()),
+        ])
+    }
+
+    /// A path as a program writes it and as it is read back from disk give
+    /// the same digest, and that digest is the same on every system.
+    #[test]
+    fn the_digest_does_not_depend_on_the_path_separator() {
+        let given = digest(&files(PathBuf::from("references/cli.md")));
+        let read_back = digest(&files(Path::new("references").join("cli.md")));
+        assert_eq!(given, read_back);
+        assert_eq!(given, GOLDEN);
+    }
+
+    /// Computed once; a change here breaks every installed record.
+    const GOLDEN: &str = "sha256:6cc04206c47535a97a74d522b2dcc77d36d66e7cae2f3ddcae4f949e6bd5d252";
+}

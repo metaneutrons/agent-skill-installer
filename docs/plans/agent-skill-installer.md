@@ -1,7 +1,7 @@
 # Initiative plan: agent-skill-installer
 
 Epic: <https://github.com/metaneutrons/agent-skill-installer/issues/7>
-Decision state: accepted on 11 October 2026; D3 stays open until M1 measures it
+Decision state: accepted on 11 October 2026; D3 decided the same day from M1
 
 ## Outcome and boundaries
 
@@ -48,7 +48,7 @@ tools read the `<dir>/<name>/SKILL.md` layout.
 | Tool | User-level skill directories it reads |
 | --- | --- |
 | Claude Code | `~/.claude/skills` |
-| Codex CLI | `~/.agents/skills` (documented); `$CODEX_HOME/skills`, by default `~/.codex/skills`, as a deprecated legacy path |
+| Codex CLI | `~/.agents/skills`; `~/.codex/skills` is no longer documented and survives only in Cursor's compatibility list |
 | Gemini CLI | `~/.gemini/skills`, `~/.agents/skills` (the alias takes precedence) |
 | GitHub Copilot | `~/.copilot/skills` (relocated by `COPILOT_HOME`), `~/.agents/skills`; VS Code also `~/.claude/skills` |
 | Cursor | `~/.cursor/skills`, `~/.agents/skills`, `~/.claude/skills`, `~/.codex/skills` |
@@ -79,9 +79,22 @@ The planner picks the smallest set of physical directories that covers every
 installed tool, after resolving symlinks, so `~/.gemini/skills` pointing at
 `~/.claude/skills` counts as one place.
 
-**Open, decided by measurement in M1:** whether a copy in `~/.agents/skills`
-plus one in `~/.claude/skills` produces duplicates in Cursor, OpenCode and VS
-Code, and whether a symlink instead of the second copy avoids that.
+**Decided on 11 October 2026 from the M1 measurement**
+([`docs/tools.md`](../tools.md)):
+
+- **Copies, not symlinks.** Gemini CLI warns about a symlink to the same skill
+  exactly as about a copy, so a symlink buys nothing. Each copy carries its own
+  ownership record and is checked and updated on its own.
+- **Selection rule.** Over the installed tools, the planner chooses the set of
+  directories that, first, leaves the fewest tools seeing the skill more than
+  once, then has the fewest directories, then prefers the vendor-neutral
+  `~/.agents/skills` over a tool-specific one. With at most eight candidate
+  directories the planner can try every set, which keeps the rule exact and
+  testable.
+- **What stays unavoidable.** Claude Code reads only `~/.claude/skills` and
+  Codex only `~/.agents/skills`; with both installed, Cursor, OpenCode and
+  Copilot in VS Code read both and see the skill twice. The plan names the
+  affected tools to the user rather than pretending otherwise.
 
 ### D4: Ownership without a marker file
 
@@ -263,3 +276,6 @@ integration.
   tree. M3 no longer waits on it.
 - 11 October 2026: M1 may be accepted with unavailable tools marked as
   unmeasured.
+- 11 October 2026: D3 decided from the M1 measurement: copies rather than
+  symlinks, and an exact selection rule. The Codex row of D1 now follows its
+  documentation, which names only `~/.agents/skills`.

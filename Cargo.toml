@@ -9,6 +9,7 @@ rust-version = "1.99"
 authors = ["Fabian Schmieder"]
 license = "LGPL-3.0-or-later"
 repository = "https://github.com/metaneutrons/agent-skill-installer"
+homepage = "https://github.com/metaneutrons/agent-skill-installer"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
@@ -28,6 +29,8 @@ rust-version.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
+homepage.workspace = true
+documentation = "https://docs.rs/agent-skill-installer"
 description = "Install an Agent Skill into the skill directories of AI coding tools, with consent and safe updates"
 readme = "README.md"
 keywords = ["agent-skills", "ai", "claude", "codex", "installer"]

@@ -43,7 +43,7 @@ cargo deny check
 
 ## Planning
 
-Substantial work is planned in `docs/plans/` with an epic and milestone issues.
+Substantial work is planned in [`docs/plans/`](docs/plans/) with an epic and milestone issues.
 The plan carries the requirements and acceptance criteria; the issues carry
 execution state and evidence.
 

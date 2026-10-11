@@ -1,0 +1,5 @@
+# The README is the crate's documentation, so its prose is linted as rustdoc.
+# OpenCode is a product name, written the way its vendor writes it; backticks
+# would render it as code on GitHub and crates.io alike. ".." keeps clippy's
+# default list.
+doc-valid-idents = ["OpenCode", ".."]

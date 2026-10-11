@@ -202,9 +202,11 @@ before it.
 
 - M2-A1: Detection follows D2, tested against a temporary home with every
   combination of present and absent tool homes.
-- M2-A2: Targets resolve through symlinks and deduplicate; the maintainer's
-  layout from the baseline, rebuilt in a temporary directory, yields one
-  physical target.
+- M2-A2: Targets resolve through symlinks and deduplicate. The maintainer's
+  layout from the baseline, rebuilt in a temporary directory, collapses
+  `~/.claude/skills` and `~/.gemini/skills` into one physical target, adds
+  `~/.agents/skills` for Codex, and names Gemini CLI as the tool that reads
+  both.
 - M2-A3: The plan selects the fewest copies per D3, with the rule M1 settled.
 - M2-A4: A target inside a git working tree is reported with its root (D6).
   Counter-probe: the same layout without `.git` reports nothing.
@@ -279,3 +281,8 @@ integration.
 - 11 October 2026: D3 decided from the M1 measurement: copies rather than
   symlinks, and an exact selection rule. The Codex row of D1 now follows its
   documentation, which names only `~/.agents/skills`.
+- 11 October 2026: M2-A2 reworded. It asked for the maintainer's layout to
+  yield one physical target, which assumed Codex read `~/.codex/skills`. Since
+  D1 follows Codex's documentation, that layout needs two targets; what the
+  criterion protects, three names for one place becoming one target, is
+  unchanged.

@@ -37,3 +37,6 @@ categories = ["development-tools", "filesystem"]
 workspace = true
 
 [dependencies]
+
+[dev-dependencies]
+tempfile = "3"

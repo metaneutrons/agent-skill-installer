@@ -43,6 +43,12 @@ the evidence about the tools in
 - **Small.** Depends on `semver` and `sha2` only. No YAML parser, no network
   access, no terminal input or output.
 
+## Toolchain support
+
+The minimum supported Rust version (MSRV) is **1.99**, the version in
+`rust-version`. CI builds and tests the crate against exactly that version on
+every change, so the number is checked rather than claimed.
+
 ## Installation
 
 ```sh
@@ -59,9 +65,7 @@ agent-skill-installer = "0.1"
 ## Quick start
 
 ```rust,no_run
-use agent_skill_installer::{
-    Approval, Catalog, Consent, Environment, Installer, Program, Skill,
-};
+use agent_skill_installer::{AgentSkill, Program, Skill};
 
 let skill = Skill::new(
     "devserial",
@@ -71,38 +75,36 @@ let skill = Skill::new(
 .with_field("license", "GPL-3.0-or-later")?
 .with_file("references/cli.md", "# Commands\n")?;
 let program = Program::new("devserial", env!("CARGO_PKG_VERSION"))?;
-let catalog = Catalog::builtin();
-let env = Environment::from_process().expect("a home directory");
-let installer = Installer::new(&catalog, &env, &skill, &program);
+let agent = AgentSkill::new(skill, program, "/path/in/your/data/dir/skill-consent")?;
 
 // At every start: keep earlier installations current. Asks nobody.
-installer.update()?;
+agent.update()?;
 
-// When the user is asked: show what would happen, install what they agree to.
-let mut consent = Consent::load("/path/in/your/data/dir/skill-consent")?;
-let assessment = installer.assess(&consent)?;
-let mut approval = Approval::default();
-for step in assessment.awaiting_approval() {
-    let agreed = true; // ask in your own surface, naming step.place and step.tools
-    if agreed {
-        approval.install.push(step.place.clone());
-    } else {
-        consent.decline(&step.place)?;
+// Once, when a place exists nobody has decided on: ask in your own surface.
+if let Some(offer) = agent.offer()? {
+    for step in offer.steps() {
+        println!("{} (read by {})", step.place.display(), step.tools.join(", "));
     }
-}
-consent.save()?;
-for outcome in installer.apply(&assessment, &approval) {
-    println!("{}: {}", outcome.place.display(), outcome.done);
+    let agreed = true; // the user's answer
+    if agreed {
+        offer.accept()?;
+    } else {
+        offer.decline()?; // these places are not offered again
+    }
 }
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
-`assess` writes nothing. It returns one step per place with what is there
+A command line can show `agent.status()`, install with
+`agent.install_everywhere()`, which also goes where the user declined before,
+and take the skill out with `agent.remove()`.
+
+`status` writes nothing. It returns one step per place with what is there
 (`Found`) and what would happen (`Action`): install, update, nothing and why,
-or a problem to report. The `Plan` inside the assessment lists the installed
-tools, the tools that will see the skill twice, and any tool that cannot be
-served, with the reason. `remove` takes away every unchanged copy the program
-installed.
+or a problem to report. The `Plan` inside it lists the installed tools, the
+tools that will see the skill twice, and any tool that cannot be served, with
+the reason. A program that wants to decide place by place uses
+`agent.installer()`, whose `assess` and `apply` take an `Approval` of its own.
 
 To add a tool the built-in list leaves out:
 
@@ -111,21 +113,15 @@ use agent_skill_installer::{Catalog, Location, SkillDir, Tool};
 
 let mut catalog = Catalog::builtin();
 catalog
-    .add_dir(SkillDir {
-        id: "kiro".into(),
-        path: Location::home(".kiro/skills"),
-        requires: Some(Location::home(".kiro")),
-        preferred: false,
-    })?
-    .add_tool(Tool {
-        id: "kiro".into(),
-        name: "Kiro".into(),
-        home: Location::home(".kiro"),
-        reads: vec!["kiro".into()],
-        may_read: vec![],
-    })?;
+    .add_dir(
+        SkillDir::new("kiro", Location::home(".kiro/skills"))
+            .requires(Location::home(".kiro")),
+    )?
+    .add_tool(Tool::new("kiro", "Kiro", Location::home(".kiro")).reads(["kiro"]))?;
 # Ok::<(), agent_skill_installer::CatalogError>(())
 ```
+
+`AgentSkill::with_catalog(catalog)` then uses it.
 
 ## Consent and updates
 
@@ -181,8 +177,8 @@ installed too; the plan names them in `Plan::duplicated`.
 ## Limits
 
 - **Windows** paths follow the tools' documentation, which only ever says `~`.
-  They are not verified, Windows is not part of CI, and the symlink cases are
-  tested on Unix only.
+  The test suite runs on Windows in CI, but no tool's behaviour was measured
+  there, and the symlink cases are tested on Unix only.
 - **Four of the six tools are documented, not measured**: Codex, Copilot,
   Cursor and OpenCode.
 - **Two programs writing the same skill at the same moment** are not

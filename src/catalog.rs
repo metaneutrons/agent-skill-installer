@@ -56,6 +56,7 @@ impl Location {
 
 /// A directory some tool reads skills from.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct SkillDir {
     /// A short, stable identifier, used by [`Tool`] to refer to it.
     pub id: String,
@@ -71,8 +72,36 @@ pub struct SkillDir {
     pub preferred: bool,
 }
 
+impl SkillDir {
+    /// A directory at `path`, owned by no single tool and not preferred.
+    #[must_use]
+    pub fn new(id: impl Into<String>, path: Location) -> Self {
+        Self {
+            id: id.into(),
+            path,
+            requires: None,
+            preferred: false,
+        }
+    }
+
+    /// The same directory, created only once `home` exists.
+    #[must_use]
+    pub fn requires(mut self, home: Location) -> Self {
+        self.requires = Some(home);
+        self
+    }
+
+    /// The same directory, preferred when two choices are otherwise equal.
+    #[must_use]
+    pub const fn preferred(mut self) -> Self {
+        self.preferred = true;
+        self
+    }
+}
+
 /// A tool that reads skills.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Tool {
     /// A short, stable identifier.
     pub id: String,
@@ -89,6 +118,42 @@ pub struct Tool {
     pub may_read: Vec<String>,
 }
 
+impl Tool {
+    /// A tool, installed when `home` exists, that reads no directory yet.
+    #[must_use]
+    pub fn new(id: impl Into<String>, name: impl Into<String>, home: Location) -> Self {
+        Self {
+            id: id.into(),
+            name: name.into(),
+            home,
+            reads: Vec::new(),
+            may_read: Vec::new(),
+        }
+    }
+
+    /// The same tool, reading these directories in every installation.
+    #[must_use]
+    pub fn reads<I, S>(mut self, dirs: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.reads.extend(dirs.into_iter().map(Into::into));
+        self
+    }
+
+    /// The same tool, reading these directories only in some installations.
+    #[must_use]
+    pub fn may_read<I, S>(mut self, dirs: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.may_read.extend(dirs.into_iter().map(Into::into));
+        self
+    }
+}
+
 /// The tools and directories the planner knows.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Catalog {
@@ -98,6 +163,7 @@ pub struct Catalog {
 
 /// Why an entry could not be added to a catalog.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum CatalogError {
     /// An entry with this identifier is already there.
     DuplicateId(String),

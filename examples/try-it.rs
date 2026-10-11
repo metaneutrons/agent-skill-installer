@@ -18,9 +18,7 @@
 
 use std::path::PathBuf;
 
-use agent_skill_installer::{
-    Approval, Catalog, Consent, Environment, Installer, Program, Skill, Step,
-};
+use agent_skill_installer::{AgentSkill, Environment, Program, Skill, Step};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut args = std::env::args().skip(1);
@@ -47,15 +45,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "# asi-try-it\n\nA demo. Nothing to do here.\n",
     )?;
     let program = Program::new("asi-try-it", &version)?;
-    let catalog = Catalog::builtin();
-    let installer = Installer::new(&catalog, &env, &skill, &program);
     let consent_file = env.home().join(".cache/asi-try-it/consent");
+    let shown_home = env.home().to_path_buf();
+    let agent = AgentSkill::new(skill, program, consent_file)?.with_environment(env);
 
     match command.as_str() {
         "plan" => {
-            let assessment = installer.assess(&Consent::load(&consent_file)?)?;
-            let plan = assessment.plan;
-            println!("home:       {}", env.home().display());
+            let plan = agent.status()?.plan;
+            println!("home:       {}", shown_home.display());
             println!("installed:  {}", list(&plan.installed));
             for target in &plan.targets {
                 println!(
@@ -84,38 +81,33 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
         "assess" => {
-            let assessment = installer.assess(&Consent::load(&consent_file)?)?;
-            for step in &assessment.steps {
+            for step in &agent.status()?.steps {
                 print_step(step);
             }
         }
         "install" => {
-            let assessment = installer.assess(&Consent::load(&consent_file)?)?;
-            let approval = Approval {
-                install: assessment
-                    .awaiting_approval()
-                    .map(|step| step.place.clone())
-                    .collect(),
-                overwrite: Vec::new(),
+            let Some(offer) = agent.offer()? else {
+                println!("nothing to offer: every place is decided");
+                return Ok(());
             };
             if !yes {
                 println!("would install into (add --yes to do it):");
-                for place in &approval.install {
-                    println!("  {}", place.display());
+                for step in offer.steps() {
+                    println!("  {}", step.place.display());
                 }
                 return Ok(());
             }
-            for outcome in installer.apply(&assessment, &approval) {
+            for outcome in offer.accept()? {
                 println!("{}: {}", outcome.place.display(), outcome.done);
             }
         }
         "update" => {
-            for outcome in installer.update()? {
+            for outcome in agent.update()? {
                 println!("{}: {}", outcome.place.display(), outcome.done);
             }
         }
         "remove" => {
-            for outcome in installer.remove()? {
+            for outcome in agent.remove()? {
                 println!("{}: {}", outcome.place.display(), outcome.done);
             }
         }

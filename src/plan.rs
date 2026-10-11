@@ -21,6 +21,7 @@ const MAX_PLACES: usize = 16;
 
 /// One directory the skill would be written to.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Target {
     /// The physical directory, every symlink resolved. This is where the
     /// skill is written.
@@ -38,6 +39,7 @@ pub struct Target {
 
 /// A tool the planner found installed but cannot serve, and why.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Unserved {
     /// The tool.
     pub tool: String,
@@ -47,6 +49,7 @@ pub struct Unserved {
 
 /// What the planner found and proposes.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[non_exhaustive]
 pub struct Plan {
     /// Installed tools, in catalog order.
     pub installed: Vec<String>,
@@ -61,6 +64,7 @@ pub struct Plan {
 
 /// Why no plan could be made.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum PlanError {
     /// More physical places than the planner compares exhaustively.
     TooManyPlaces(usize),

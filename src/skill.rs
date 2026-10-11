@@ -39,6 +39,7 @@ pub struct Skill {
 
 /// Why a skill was refused.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum SkillError {
     /// The name breaks the specification.
     Name(NameError),

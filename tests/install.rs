@@ -47,13 +47,11 @@ fn install(home: &Path, skill: &Skill, program: &Program) -> Vec<PathBuf> {
     let env = Environment::new(home);
     let installer = Installer::new(&catalog, &env, skill, program);
     let assessment = installer.assess(&no_consent(home)).expect("assess");
-    let approval = Approval {
-        install: assessment
+    let approval = Approval::install(
+        assessment
             .awaiting_approval()
-            .map(|step| step.place.clone())
-            .collect(),
-        overwrite: Vec::new(),
-    };
+            .map(|step| step.place.clone()),
+    );
     let outcomes = installer.apply(&assessment, &approval);
     assert!(
         outcomes
@@ -378,10 +376,7 @@ fn a_modified_copy_is_kept_until_overwritten_on_purpose() {
     );
     let outcomes = installer.apply(
         &assessment,
-        &Approval {
-            install: Vec::new(),
-            overwrite: vec![places[0].clone()],
-        },
+        &Approval::install(Vec::new()).with_overwrite(vec![places[0].clone()]),
     );
     assert_eq!(outcomes[0].done, Done::Overwritten);
     assert!(
@@ -423,10 +418,8 @@ fn a_skill_that_is_not_ours_is_never_replaced() {
             "{what}: {:?}",
             assessment.steps[0].action
         );
-        let everything = Approval {
-            install: vec![assessment.steps[0].place.clone()],
-            overwrite: vec![assessment.steps[0].place.clone()],
-        };
+        let everything = Approval::install(vec![assessment.steps[0].place.clone()])
+            .with_overwrite(vec![assessment.steps[0].place.clone()]);
         assert!(
             installer.apply(&assessment, &everything).is_empty(),
             "{what}"
@@ -526,10 +519,8 @@ fn a_symlinked_skill_directory_is_never_written_through() {
         assessment.steps[0].found,
         Found::Foreign("is a symlink".into())
     );
-    let everything = Approval {
-        install: vec![assessment.steps[0].place.clone()],
-        overwrite: vec![assessment.steps[0].place.clone()],
-    };
+    let everything = Approval::install(vec![assessment.steps[0].place.clone()])
+        .with_overwrite(vec![assessment.steps[0].place.clone()]);
     let outcomes = installer.apply(&assessment, &everything);
     assert!(outcomes.is_empty(), "{outcomes:?}");
     assert_eq!(fs::read_dir(&elsewhere).expect("read").count(), 1);
@@ -669,10 +660,7 @@ fn a_skill_put_in_place_after_the_assessment_is_left_alone() {
     fs::create_dir_all(&theirs).expect("theirs");
     fs::write(theirs.join(SKILL_FILE), "theirs\n").expect("write");
 
-    let approval = Approval {
-        install: vec![place.clone()],
-        overwrite: Vec::new(),
-    };
+    let approval = Approval::install(vec![place.clone()]);
     let outcomes = installer.apply(&assessment, &approval);
     assert_eq!(outcomes[0].done, Done::Changed, "{outcomes:?}");
     assert_eq!(

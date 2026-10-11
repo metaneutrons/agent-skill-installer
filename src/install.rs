@@ -45,6 +45,7 @@ impl Program {
 
 /// What is in a place under the skill's name.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Found {
     /// Nothing.
     Absent,
@@ -61,6 +62,7 @@ pub enum Found {
 
 /// What the installer would do in a place, and why.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Action {
     /// Install, once the user agrees.
     Install,
@@ -78,6 +80,7 @@ pub enum Action {
 
 /// Why nothing is done.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Why {
     /// The user declined this target.
     Declined,
@@ -92,6 +95,7 @@ pub enum Why {
 
 /// Why something needs the user's attention.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Problem {
     /// The installed copy was changed after installation. Only an explicit
     /// overwrite replaces it.
@@ -103,6 +107,7 @@ pub enum Problem {
 
 /// One place, what is there and what would happen.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Step {
     /// The physical skills directory.
     pub place: PathBuf,
@@ -122,6 +127,7 @@ pub struct Step {
 
 /// A plan and the step for every place it concerns.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Assessment {
     /// Where the skill should go.
     pub plan: Plan,
@@ -141,6 +147,7 @@ impl Assessment {
 
 /// What the user agreed to.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Approval {
     /// Places to install into.
     pub install: Vec<PathBuf>,
@@ -148,8 +155,27 @@ pub struct Approval {
     pub overwrite: Vec<PathBuf>,
 }
 
+impl Approval {
+    /// Agreement to install into these places.
+    #[must_use]
+    pub fn install(places: impl IntoIterator<Item = PathBuf>) -> Self {
+        Self {
+            install: places.into_iter().collect(),
+            overwrite: Vec::new(),
+        }
+    }
+
+    /// The same approval, also replacing the modified copies in these places.
+    #[must_use]
+    pub fn with_overwrite(mut self, places: impl IntoIterator<Item = PathBuf>) -> Self {
+        self.overwrite.extend(places);
+        self
+    }
+}
+
 /// What happened in one place.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Outcome {
     /// The physical skills directory.
     pub place: PathBuf,
@@ -159,6 +185,7 @@ pub struct Outcome {
 
 /// What happened.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Done {
     /// Installed.
     Installed,

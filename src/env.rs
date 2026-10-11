@@ -12,10 +12,21 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
 /// A home directory and the environment variables that relocate tools.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct Environment {
     home: PathBuf,
     vars: BTreeMap<String, OsString>,
+}
+
+/// Names only: the process environment holds tokens and passwords, and a
+/// program that logs its environment must not log those.
+impl std::fmt::Debug for Environment {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Environment")
+            .field("home", &self.home)
+            .field("vars", &self.vars.keys().collect::<Vec<_>>())
+            .finish()
+    }
 }
 
 impl Environment {
@@ -66,5 +77,19 @@ impl Environment {
     #[must_use]
     pub fn var(&self, name: &str) -> Option<&OsString> {
         self.vars.get(name).filter(|value| !value.is_empty())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The process environment holds secrets; Debug shows only names.
+    #[test]
+    fn debug_shows_variable_names_not_values() {
+        let env = Environment::new("/home/x").with_var("API_TOKEN", "s3cr3t-value");
+        let shown = format!("{env:?}");
+        assert!(shown.contains("API_TOKEN"), "{shown}");
+        assert!(!shown.contains("s3cr3t-value"), "{shown}");
     }
 }

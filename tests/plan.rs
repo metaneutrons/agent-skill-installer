@@ -292,20 +292,11 @@ fn an_added_tool_is_treated_like_a_builtin_one() {
     fs::create_dir_all(home.path().join(".kiro")).expect("kiro home");
     let mut catalog = Catalog::builtin();
     catalog
-        .add_dir(SkillDir {
-            id: "kiro".into(),
-            path: Location::home(".kiro/skills"),
-            requires: Some(Location::home(".kiro")),
-            preferred: false,
-        })
+        .add_dir(
+            SkillDir::new("kiro", Location::home(".kiro/skills")).requires(Location::home(".kiro")),
+        )
         .expect("dir")
-        .add_tool(Tool {
-            id: "kiro".into(),
-            name: "Kiro".into(),
-            home: Location::home(".kiro"),
-            reads: vec!["kiro".into()],
-            may_read: vec![],
-        })
+        .add_tool(Tool::new("kiro", "Kiro", Location::home(".kiro")).reads(["kiro"]))
         .expect("tool");
 
     let plan = plan(&catalog, &Environment::new(home.path())).expect("plan");
@@ -319,24 +310,13 @@ fn an_added_tool_is_treated_like_a_builtin_one() {
 #[test]
 fn a_catalog_refuses_entries_that_would_mislead_the_planner() {
     let mut catalog = Catalog::builtin();
-    let claude_again = SkillDir {
-        id: "claude".into(),
-        path: Location::home("x"),
-        requires: None,
-        preferred: false,
-    };
+    let claude_again = SkillDir::new("claude", Location::home("x"));
     assert_eq!(
         catalog.add_dir(claude_again).err(),
         Some(CatalogError::DuplicateId("claude".into()))
     );
 
-    let reads = |reads: Vec<String>| Tool {
-        id: "t".into(),
-        name: "T".into(),
-        home: Location::home(".t"),
-        reads,
-        may_read: vec![],
-    };
+    let reads = |reads: Vec<String>| Tool::new("t", "T", Location::home(".t")).reads(reads);
     assert_eq!(
         catalog.add_tool(reads(vec![])).err(),
         Some(CatalogError::ReadsNothing("t".into()))
@@ -370,23 +350,15 @@ fn custom(dirs: &[(&str, bool)], tools: &[(&str, &[&str])]) -> Catalog {
     let mut catalog = Catalog::empty();
     for (id, preferred) in dirs {
         catalog
-            .add_dir(SkillDir {
-                id: (*id).into(),
-                path: Location::home(format!(".t/{id}")),
-                requires: None,
-                preferred: *preferred,
+            .add_dir({
+                let dir = SkillDir::new(*id, Location::home(format!(".t/{id}")));
+                if *preferred { dir.preferred() } else { dir }
             })
             .expect("dir");
     }
     for (id, reads) in tools {
         catalog
-            .add_tool(Tool {
-                id: (*id).into(),
-                name: (*id).into(),
-                home: Location::home(".t"),
-                reads: ids(reads),
-                may_read: vec![],
-            })
+            .add_tool(Tool::new(*id, *id, Location::home(".t")).reads(ids(reads)))
             .expect("tool");
     }
     catalog
@@ -442,20 +414,12 @@ fn a_missing_home_is_never_created_to_serve_a_tool() {
     fs::create_dir_all(home.path().join(".t")).expect("tool home");
     let mut catalog = Catalog::empty();
     catalog
-        .add_dir(SkillDir {
-            id: "theirs".into(),
-            path: Location::home(".other/skills"),
-            requires: Some(Location::home(".other")),
-            preferred: false,
-        })
+        .add_dir(
+            SkillDir::new("theirs", Location::home(".other/skills"))
+                .requires(Location::home(".other")),
+        )
         .expect("dir")
-        .add_tool(Tool {
-            id: "t".into(),
-            name: "T".into(),
-            home: Location::home(".t"),
-            reads: ids(&["theirs"]),
-            may_read: vec![],
-        })
+        .add_tool(Tool::new("t", "T", Location::home(".t")).reads(ids(&["theirs"])))
         .expect("tool");
 
     let plan = plan(&catalog, &Environment::new(home.path())).expect("plan");

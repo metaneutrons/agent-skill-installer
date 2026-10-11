@@ -22,6 +22,7 @@ const MAX_LEN: usize = 64;
 
 /// Why a skill name was refused.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum NameError {
     /// The name is empty.
     Empty,

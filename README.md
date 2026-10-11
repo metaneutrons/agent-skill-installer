@@ -4,8 +4,9 @@ Install an [Agent Skill](https://agentskills.io/specification) that ships with
 your program into the skill directories of the AI coding tools on the user's
 machine, so the tools know what your program is for and how to use it.
 
-**Status: planned, not implemented.** The design and its acceptance criteria
-are in [`docs/plans/`](docs/plans/).
+**Status: implemented, not yet released.** The design and its acceptance
+criteria are in [`docs/plans/`](docs/plans/), the evidence about the tools in
+[`docs/tools.md`](docs/tools.md).
 
 The intended behaviour, in short:
 

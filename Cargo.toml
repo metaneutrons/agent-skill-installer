@@ -37,6 +37,9 @@ categories = ["development-tools", "filesystem"]
 workspace = true
 
 [dependencies]
+semver = "1"
+sha2 = "0.11"
 
 [dev-dependencies]
+semver = "1"
 tempfile = "3"

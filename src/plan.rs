@@ -315,3 +315,26 @@ fn choose(places: &[Place], servable: &[&(usize, Vec<usize>, Vec<usize>)]) -> Ve
     }
     best.map(|(_, set)| set).unwrap_or_default()
 }
+
+/// Every existing physical directory of the catalog, resolved and without
+/// duplicates.
+///
+/// Updates and removals look here rather than only at a plan's targets: a
+/// skill installed for a tool that has since been uninstalled is still the
+/// program's own, and still worth keeping current or taking away.
+#[must_use]
+pub fn existing_places(catalog: &Catalog, env: &Environment) -> Vec<PathBuf> {
+    let mut places: Vec<PathBuf> = Vec::new();
+    for dir in &catalog.dirs {
+        let path = dir.path.resolve(env);
+        if !path.is_dir() {
+            continue;
+        }
+        if let Ok(physical) = resolve::physical(&path)
+            && !places.contains(&physical)
+        {
+            places.push(physical);
+        }
+    }
+    places
+}

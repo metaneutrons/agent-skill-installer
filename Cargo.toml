@@ -32,6 +32,9 @@ description = "Install an Agent Skill into the skill directories of AI coding to
 readme = "README.md"
 keywords = ["agent-skills", "ai", "claude", "codex", "installer"]
 categories = ["development-tools", "filesystem"]
+# The library and what a reader of it needs. Repository tooling (CI, hooks,
+# the measurement script, release configuration) stays out of the package.
+include = ["src/**/*.rs", "Cargo.toml", "Cargo.lock", "README.md", "LICENSE", "CHANGELOG.md"]
 
 [lints]
 workspace = true

@@ -185,7 +185,8 @@ installed too; the plan names them in `Plan::duplicated`.
   coordinated. Each write is atomic, so the place ends up with one complete
   version, but one of the two may report a failure.
 - **An interrupted process** can leave a `.asi-*` staging directory beside the
-  skills directory. It is not cleaned up automatically.
+  skills directory. The next write of the same skill removes it once it is an
+  hour old; a younger one may belong to a write in progress.
 - **Package managers do not install skills.** That would be installing without
   consent; the program asks at runtime instead.
 

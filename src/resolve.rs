@@ -24,6 +24,7 @@ pub fn physical(path: &Path) -> io::Result<PathBuf> {
     loop {
         match std::fs::canonicalize(current) {
             Ok(resolved) => {
+                let resolved = simplified(resolved);
                 return Ok(missing
                     .iter()
                     .rev()
@@ -49,6 +50,30 @@ pub fn physical(path: &Path) -> io::Result<PathBuf> {
     }
 }
 
+/// A canonical path as people and the other tools write it.
+///
+/// Windows hands canonical paths out in the verbatim form `\\?\C:\...`.
+/// Every tool, and a consent file a user may read, writes `C:\...`; a place
+/// compared or shown in the long form would look like another one. Only a
+/// plain drive path is shortened; a verbatim UNC path stays as it is.
+#[cfg(windows)]
+fn simplified(path: PathBuf) -> PathBuf {
+    let text = path.to_string_lossy();
+    if let Some(rest) = text.strip_prefix(r"\\?\")
+        && rest.as_bytes().get(1) == Some(&b':')
+        && rest.as_bytes().first().is_some_and(u8::is_ascii_alphabetic)
+    {
+        return PathBuf::from(rest);
+    }
+    path
+}
+
+/// Elsewhere canonical paths are already the ones people write.
+#[cfg(not(windows))]
+const fn simplified(path: PathBuf) -> PathBuf {
+    path
+}
+
 /// The root of the git working tree a place lies in, if any.
 ///
 /// Presence of `.git`, a directory in a normal clone and a file in a linked
@@ -59,4 +84,34 @@ pub fn git_root(physical: &Path) -> Option<PathBuf> {
         .ancestors()
         .find(|dir| dir.join(".git").symlink_metadata().is_ok())
         .map(Path::to_path_buf)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// On Windows a canonical path comes back as `C:\\...`, as people and
+    /// tools write it, not in the verbatim `\\\\?\\` form.
+    #[cfg(windows)]
+    #[test]
+    fn a_physical_path_is_written_as_people_write_it() {
+        let dir = tempfile::tempdir().expect("dir");
+        let place = physical(&dir.path().join("skills")).expect("physical");
+        assert!(
+            !place.to_string_lossy().starts_with(r"\\?\"),
+            "{}",
+            place.display()
+        );
+    }
+
+    /// Elsewhere the path is the canonical one, unchanged.
+    #[test]
+    fn a_physical_path_resolves_symlinks_only() {
+        let dir = tempfile::tempdir().expect("dir");
+        let resolved = std::fs::canonicalize(dir.path()).expect("canonical");
+        assert_eq!(
+            physical(&dir.path().join("skills")).expect("physical"),
+            resolved.join("skills")
+        );
+    }
 }

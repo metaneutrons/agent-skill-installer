@@ -50,6 +50,13 @@ pub enum SkillError {
     Key(String),
     /// A file path is absolute, leaves the skill directory, or is `SKILL.md`.
     Path(PathBuf),
+    /// A frontmatter key or metadata key given twice. YAML forbids it, and
+    /// tools disagree on which value wins.
+    Duplicate(String),
+    /// A file path that differs from another, or from `SKILL.md`, only in
+    /// letter case: one file on the case-insensitive file systems of macOS
+    /// and Windows.
+    CaseCollision(PathBuf),
 }
 
 impl fmt::Display for SkillError {
@@ -61,6 +68,12 @@ impl fmt::Display for SkillError {
                 "a description has 1 to {MAX_DESCRIPTION} characters, this one has {len}"
             ),
             Self::Key(key) => write!(f, "'{key}' cannot be used as a frontmatter key here"),
+            Self::Duplicate(key) => write!(f, "'{key}' is given twice"),
+            Self::CaseCollision(path) => write!(
+                f,
+                "{} differs from another file only in letter case",
+                path.display()
+            ),
             Self::Path(path) => write!(
                 f,
                 "{} is not a relative path inside the skill",
@@ -121,6 +134,9 @@ impl Skill {
         if !plain_key(&key) || RESERVED_FIELDS.contains(&key.as_str()) {
             return Err(SkillError::Key(key));
         }
+        if self.fields.iter().any(|(known, _)| *known == key) {
+            return Err(SkillError::Duplicate(key));
+        }
         self.fields.push((key, value.into()));
         Ok(self)
     }
@@ -141,6 +157,9 @@ impl Skill {
         if !plain || RECORD_KEYS.contains(&key.as_str()) {
             return Err(SkillError::Key(key));
         }
+        if self.metadata.iter().any(|(known, _)| *known == key) {
+            return Err(SkillError::Duplicate(key));
+        }
         self.metadata.push((key, value.into()));
         Ok(self)
     }
@@ -158,6 +177,12 @@ impl Skill {
         let path = path.into();
         if !contained(&path) || path == Path::new(SKILL_FILE) {
             return Err(SkillError::Path(path));
+        }
+        let wanted = folded(&path);
+        if wanted == folded_str(SKILL_FILE)
+            || self.files.keys().any(|known| folded(known) == wanted)
+        {
+            return Err(SkillError::CaseCollision(path));
         }
         self.files.insert(path, content.into());
         Ok(self)
@@ -217,6 +242,22 @@ fn plain_key(key: &str) -> bool {
 }
 
 /// A relative path that stays inside the directory it is joined to.
+/// A path as a case-insensitive file system compares it, parts joined by
+/// `/` whatever the system's separator.
+fn folded(path: &Path) -> String {
+    folded_str(
+        &path
+            .components()
+            .map(|part| part.as_os_str().to_string_lossy())
+            .collect::<Vec<_>>()
+            .join("/"),
+    )
+}
+
+fn folded_str(text: &str) -> String {
+    text.to_lowercase()
+}
+
 pub fn contained(path: &Path) -> bool {
     !path.as_os_str().is_empty()
         && path
@@ -249,4 +290,49 @@ pub fn quote(value: &str) -> String {
     }
     out.push('"');
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn base() -> Skill {
+        Skill::new("devserial", "Serial terminal.", "body\n").expect("skill")
+    }
+
+    /// A key given twice is refused; YAML forbids it and tools disagree on
+    /// which value wins.
+    #[test]
+    fn a_key_given_twice_is_refused() {
+        let once = base().with_field("license", "MIT").expect("first");
+        assert_eq!(
+            once.with_field("license", "GPL-3.0").err(),
+            Some(SkillError::Duplicate("license".into()))
+        );
+        let once = base()
+            .with_metadata("opencode/slash", "true")
+            .expect("first");
+        assert_eq!(
+            once.with_metadata("opencode/slash", "false").err(),
+            Some(SkillError::Duplicate("opencode/slash".into()))
+        );
+    }
+
+    /// Paths that differ only in letter case are one file on macOS and
+    /// Windows, so the second is refused, and so is a `skill.md`.
+    #[test]
+    fn paths_differing_only_in_case_are_refused() {
+        let one = base().with_file("references/cli.md", "a").expect("first");
+        assert_eq!(
+            one.clone().with_file("References/CLI.md", "b").err(),
+            Some(SkillError::CaseCollision(PathBuf::from(
+                "References/CLI.md"
+            )))
+        );
+        assert_eq!(
+            one.clone().with_file("skill.md", "c").err(),
+            Some(SkillError::CaseCollision(PathBuf::from("skill.md")))
+        );
+        assert!(one.with_file("references/api.md", "d").is_ok());
+    }
 }

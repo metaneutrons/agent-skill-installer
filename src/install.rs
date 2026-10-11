@@ -456,6 +456,41 @@ pub enum Stage {
 
 /// A sibling of the skills directory for staging, so no tool scanning the
 /// skills directory ever sees a half-written skill as one of its own.
+/// How old a staging directory has to be before it counts as left behind by
+/// a process that died. No replacement takes this long.
+const STALE: std::time::Duration = std::time::Duration::from_hours(1);
+
+/// Remove staging directories of this skill that a crashed or killed process
+/// left beside the skills directory. Their age is in their name; a young one
+/// may belong to a write going on right now and is left alone.
+fn sweep_stale(place: &Path, skill_dir: &Path) {
+    let (Some(parent), Some(name)) = (place.parent(), skill_dir.file_name()) else {
+        return;
+    };
+    let prefix = format!(".asi-{}-", name.to_string_lossy());
+    let Ok(entries) = fs::read_dir(parent) else {
+        return;
+    };
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |since| since.as_nanos());
+    for entry in entries.flatten() {
+        let file_name = entry.file_name();
+        let Some(rest) = file_name.to_str().and_then(|n| n.strip_prefix(&prefix)) else {
+            continue;
+        };
+        // `<pid>-<stamp>.<kind>`; the skill's own name may hold hyphens, but
+        // it is already stripped.
+        let stamp = rest
+            .rsplit_once('.')
+            .and_then(|(head, _)| head.rsplit_once('-'))
+            .and_then(|(_, stamp)| stamp.parse::<u128>().ok());
+        if stamp.is_some_and(|stamp| now.saturating_sub(stamp) > STALE.as_nanos()) {
+            let _ = fs::remove_dir_all(entry.path());
+        }
+    }
+}
+
 fn staging(place: &Path, skill_dir: &Path, kind: &str) -> io::Result<PathBuf> {
     let parent = place.parent().ok_or_else(|| {
         io::Error::new(
@@ -487,6 +522,7 @@ pub fn replace_dir(
     files: &BTreeMap<PathBuf, Vec<u8>>,
     interrupt: &mut dyn FnMut(Stage, &Path) -> io::Result<()>,
 ) -> io::Result<()> {
+    sweep_stale(place, skill_dir);
     fs::create_dir_all(place)?;
     let new = staging(place, skill_dir, "new")?;
     let written = (|| {
@@ -518,8 +554,10 @@ pub fn replace_dir(
         let _ = fs::remove_dir_all(&new);
         return Err(error);
     }
+    // The new version is in place. Failing to delete the old one changes
+    // nothing a tool sees; the next write sweeps it away.
     if had_old {
-        fs::remove_dir_all(&old)?;
+        let _ = fs::remove_dir_all(&old);
     }
     Ok(())
 }
@@ -528,9 +566,12 @@ pub fn replace_dir(
 /// never reads a half-deleted skill.
 fn remove_dir(skill_dir: &Path) -> io::Result<()> {
     let place = skill_dir.parent().unwrap_or(skill_dir);
+    sweep_stale(place, skill_dir);
     let aside = staging(place, skill_dir, "gone")?;
     fs::rename(skill_dir, &aside)?;
-    fs::remove_dir_all(aside)
+    // Gone for every tool once moved aside; a failed delete is swept later.
+    let _ = fs::remove_dir_all(aside);
+    Ok(())
 }
 
 #[cfg(test)]
@@ -600,6 +641,70 @@ mod tests {
             "new"
         );
         assert_eq!(leftovers(&home.path().join("tool")), Vec::<String>::new());
+    }
+
+    /// A staging directory older than an hour, left by a process that died,
+    /// is swept by the next write; a young one may be a write going on now
+    /// and stays.
+    #[test]
+    fn stale_staging_is_swept_and_young_staging_kept() {
+        let home = tempfile::tempdir().expect("home");
+        let parent = home.path().join("tool");
+        let place = parent.join("skills");
+        let skill_dir = place.join("devserial");
+        fs::create_dir_all(&parent).expect("parent");
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos();
+        let old = now - std::time::Duration::from_hours(2).as_nanos();
+        let young = now - std::time::Duration::from_mins(1).as_nanos();
+        let stale = parent.join(format!(".asi-devserial-1-{old}.new"));
+        let fresh = parent.join(format!(".asi-devserial-1-{young}.new"));
+        let other = parent.join(format!(".asi-other-1-{old}.new"));
+        for dir in [&stale, &fresh, &other] {
+            fs::create_dir_all(dir).expect("staging");
+        }
+
+        replace_dir(&place, &skill_dir, &files("x"), &mut |_, _| Ok(())).expect("replace");
+        assert!(!stale.exists(), "a stale staging directory was left");
+        assert!(fresh.exists(), "a young staging directory was swept");
+        assert!(other.exists(), "another skill's staging was swept");
+    }
+
+    /// Once the new version is in place, failing to delete the old one is not
+    /// a failure: no tool sees the difference, and the next write sweeps it.
+    #[cfg(unix)]
+    #[test]
+    fn a_failed_cleanup_does_not_fail_the_replacement() {
+        use std::os::unix::fs::PermissionsExt as _;
+        let home = tempfile::tempdir().expect("home");
+        let place = home.path().join("tool/skills");
+        let skill_dir = place.join("devserial");
+        let mut first = files("old");
+        first.insert(PathBuf::from("locked/file.md"), b"x".to_vec());
+        replace_dir(&place, &skill_dir, &first, &mut |_, _| Ok(())).expect("first");
+        let locked = skill_dir.join("locked");
+        fs::set_permissions(&locked, fs::Permissions::from_mode(0o555)).expect("lock");
+
+        let result = replace_dir(&place, &skill_dir, &files("new"), &mut |_, _| Ok(()));
+        let left = leftovers(&home.path().join("tool"));
+        for dir in &left {
+            let _ = fs::set_permissions(
+                home.path().join("tool").join(dir).join("locked"),
+                fs::Permissions::from_mode(0o755),
+            );
+        }
+        result.expect("the replacement reported a failure");
+        assert_eq!(
+            fs::read_to_string(skill_dir.join(SKILL_FILE)).expect("new"),
+            "new"
+        );
+        assert_eq!(
+            left.len(),
+            1,
+            "the old copy should be left for the sweep: {left:?}"
+        );
     }
 
     /// Staging happens beside the skills directory, never inside it, so a

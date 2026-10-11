@@ -70,6 +70,24 @@ jobs:
         if: matrix.name == 'linux-x86_64'
         run: cargo llvm-cov --workspace --all-features --locked --fail-under-lines 70
 
+  # A crate on crates.io promises the oldest Rust it builds with in
+  # `rust-version`. Without a run against exactly that version the field is an
+  # assertion; rust-toolchain.toml moves ahead with Dependabot, this does not.
+  msrv:
+    name: Minimum supported Rust
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Build and test against rust-version
+        run: |
+          set -euo pipefail
+          msrv=$(sed -n 's/^rust-version = "\(.*\)"$/\1/p' Cargo.toml)
+          test -n "$msrv"
+          rustup toolchain install "$msrv" --profile minimal
+          export RUSTUP_TOOLCHAIN="$msrv"
+          rustc --version
+          cargo test --workspace --all-features --locked
+
   commit-hygiene:
     name: Commit hygiene
     if: github.event_name == 'pull_request'
@@ -156,7 +174,7 @@ jobs:
   ci-success:
     name: CI Success
     if: always()
-    needs: [quality, test, secrets, commit-hygiene]
+    needs: [quality, test, msrv, secrets, commit-hygiene]
     runs-on: ubuntu-24.04
     steps:
       - name: Every preceding job must have succeeded or been skipped

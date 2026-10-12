@@ -105,6 +105,7 @@ mod tests {
     }
 
     /// Elsewhere the path is the canonical one, unchanged.
+    #[cfg(not(windows))]
     #[test]
     fn a_physical_path_resolves_symlinks_only() {
         let dir = tempfile::tempdir().expect("dir");

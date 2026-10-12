@@ -29,8 +29,17 @@ fn machine(tools: &[&str]) -> tempfile::TempDir {
     home
 }
 
+/// A canonical path as the crate reports places: on Windows without the
+/// verbatim `\\\\?\\` prefix, as people and tools write it.
 fn real(path: &Path) -> PathBuf {
-    fs::canonicalize(path).expect("canonical")
+    let canonical = fs::canonicalize(path).expect("canonical");
+    if cfg!(windows)
+        && let Some(rest) = canonical.to_string_lossy().strip_prefix(r"\\?\")
+        && rest.as_bytes().get(1) == Some(&b':')
+    {
+        return PathBuf::from(rest);
+    }
+    canonical
 }
 
 /// The catalog directories of each target, which is what the selection rule

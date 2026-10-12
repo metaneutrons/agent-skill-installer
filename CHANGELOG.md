@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/metaneutrons/agent-skill-installer/compare/v0.2.0...v0.2.1) (2026-10-12)
+
+
+### Continuous Integration
+
+* check the release draft where the token can see it ([#26](https://github.com/metaneutrons/agent-skill-installer/issues/26)) ([8e3826f](https://github.com/metaneutrons/agent-skill-installer/commit/8e3826f1f3df49d226c2ccf4ce92d2a3837319e3))
+
 ## [0.2.0](https://github.com/metaneutrons/agent-skill-installer/compare/v0.1.0...v0.2.0) (2026-10-12)
 
 

@@ -83,7 +83,12 @@ impl Consent {
             text.push('\n');
         }
         let staging = self.path.with_extension("tmp");
-        fs::write(&staging, text)?;
+        let mut file = fs::File::create(&staging)?;
+        std::io::Write::write_all(&mut file, text.as_bytes())?;
+        // On disk before the rename, so a crash leaves the old answers or the
+        // new ones, never an empty file.
+        file.sync_all()?;
+        drop(file);
         fs::rename(&staging, &self.path)
     }
 }

@@ -12,6 +12,19 @@ use agent_skill_installer::{
     SKILL_FILE, Skill, Why,
 };
 
+/// A canonical path as the crate reports places: on Windows without the
+/// verbatim `\\\\?\\` prefix, as people and tools write it.
+fn real(path: &Path) -> PathBuf {
+    let canonical = fs::canonicalize(path).expect("canonical");
+    if cfg!(windows)
+        && let Some(rest) = canonical.to_string_lossy().strip_prefix(r"\\?\")
+        && rest.as_bytes().get(1) == Some(&b':')
+    {
+        return PathBuf::from(rest);
+    }
+    canonical
+}
+
 fn machine(tools: &[&str]) -> tempfile::TempDir {
     let home = tempfile::tempdir().expect("temp home");
     for dir in tools {
@@ -442,7 +455,7 @@ fn an_update_proceeds_inside_a_git_working_tree() {
     let step = first_step(home.path(), &skill("new"), &program("0.2.0"));
     assert_eq!(
         step.git_root,
-        Some(fs::canonicalize(home.path().join(".claude/skills")).expect("canonical"))
+        Some(real(&home.path().join(".claude/skills")))
     );
 
     let catalog = Catalog::builtin();

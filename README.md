@@ -14,11 +14,6 @@ reach all of them, installs only after the user agreed, and later keeps its own
 unchanged copies current without asking. The crate decides what would happen
 and carries it out; your program asks the user in its own CLI, TUI or GUI.
 
-**Status: implemented, not yet released.** The design and its acceptance
-criteria are in [`docs/plans/`](https://github.com/metaneutrons/agent-skill-installer/tree/main/docs/plans),
-the evidence about the tools in
-[`docs/tools.md`](https://github.com/metaneutrons/agent-skill-installer/blob/main/docs/tools.md).
-
 ## Features
 
 - **Only where a tool is present.** A tool counts as installed when its home

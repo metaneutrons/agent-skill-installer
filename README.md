@@ -4,7 +4,7 @@
 [![docs.rs](https://img.shields.io/docsrs/agent-skill-installer)](https://docs.rs/agent-skill-installer)
 [![CI](https://img.shields.io/github/actions/workflow/status/metaneutrons/agent-skill-installer/ci.yml?branch=main&label=CI)](https://github.com/metaneutrons/agent-skill-installer/actions/workflows/ci.yml)
 [![License: LGPL-3.0-or-later](https://img.shields.io/badge/license-LGPL--3.0--or--later-blue.svg)](https://github.com/metaneutrons/agent-skill-installer/blob/main/LICENSE)
-[![MSRV: 1.99](https://img.shields.io/badge/MSRV-1.99-orange.svg)](https://github.com/metaneutrons/agent-skill-installer/blob/main/Cargo.toml)
+[![MSRV: 1.95](https://img.shields.io/badge/MSRV-1.95-orange.svg)](https://github.com/metaneutrons/agent-skill-installer/blob/main/Cargo.toml)
 
 A Rust library that installs an [Agent Skill](https://agentskills.io/specification)
 shipped inside your program into the skill directories of the AI coding tools
@@ -45,9 +45,11 @@ the evidence about the tools in
 
 ## Toolchain support
 
-The minimum supported Rust version (MSRV) is **1.99**, the version in
-`rust-version`. CI builds and tests the crate against exactly that version on
-every change, so the number is checked rather than claimed.
+The minimum supported Rust version (MSRV) is **1.95**. The crate targets a
+rolling window of stable Rust minus four releases, reviewed with each minor
+release. MSRV increases are made only in minor releases and noted in the
+changelog. CI builds and tests the crate against exactly the version in
+`rust-version` on every change.
 
 ## Installation
 
